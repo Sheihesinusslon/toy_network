@@ -1,8 +1,9 @@
 import numpy as np
-from typing import Sequence
+from typing import Sequence, Optional
 
-from src.activation import ActivationFunction, ReLU
+from src.activation import ActivationFunction, Identity
 from src.losses import Loss
+from src.metrics import Metrics
 from src.tensor import Tensor
 
 
@@ -32,9 +33,15 @@ class Neuron:
 
 class Layer:
     def __init__(
-        self, n_inputs: int, n_neurons: int, activation: ActivationFunction = ReLU
+        self,
+        n_inputs: int,
+        n_neurons: int,
+        activation: Optional[ActivationFunction] = None,
     ):
-        self.neurons = [Neuron(n_inputs, activation) for _ in range(n_neurons)]
+        self.neurons = [
+            Neuron(n_inputs, activation if activation else Identity())
+            for _ in range(n_neurons)
+        ]
 
     def forward(self, inputs: Tensor) -> Tensor:
         outputs = [neuron.forward(inputs) for neuron in self.neurons]
@@ -54,12 +61,15 @@ class NeuralNetwork:
         self,
         layers: Sequence[Layer],
         loss_f: Loss,
+        metrics: Metrics,
         learning_rate: float = 0.01,
     ):
         self.layers = layers
         self.loss_f = loss_f
+        self.metrics = metrics
         self.learning_rate = learning_rate
         self._loss: float | None = None
+        self._score: float | None = None
 
     def forward(self, inputs: Tensor) -> Tensor:
         for layer in self.layers:
@@ -84,8 +94,11 @@ class NeuralNetwork:
                 neuron.weights.value -= self.learning_rate * neuron.weights.grad
                 neuron.bias.value -= self.learning_rate * neuron.bias.grad
 
-    def loss(self, y_pred: Tensor, y: Tensor) -> Tensor:
-        return self.loss_f(y_pred, y)
+    def loss(self, y_pred: Tensor, y_true: Tensor) -> Tensor:
+        return self.loss_f(y_pred, y_true)
+
+    def score(self, y_pred: np.ndarray, y_true: np.ndarray) -> float:
+        return self.metrics(y_pred, y_true)
 
     def fit(
         self,
@@ -97,6 +110,7 @@ class NeuralNetwork:
         """Train the neural network using gradient descent."""
         for epoch in range(n_epochs):
             epoch_loss = 0
+            epoch_score = 0
             for i in range(0, len(X), batch_size):
                 X_batch = Tensor(X[i : i + batch_size])
                 y_batch = Tensor(y[i : i + batch_size])
@@ -105,6 +119,7 @@ class NeuralNetwork:
 
                 # Forward pass
                 output = self.forward(X_batch)
+                epoch_score += self.score(output.value, y_batch.value)
 
                 # Compute loss
                 loss = self.loss(output, y_batch)
@@ -118,10 +133,17 @@ class NeuralNetwork:
                 self.update()
 
             self._loss = epoch_loss / (len(X) // batch_size)
+            self._score = epoch_score / (len(X) // batch_size)
             if epoch % 10 == 0:
-                print(f"Epoch {epoch}/{n_epochs}, Loss: {self._loss}")
+                print(
+                    f"Epoch {epoch}/{n_epochs}, "
+                    f"{self.loss_f} loss: {self._loss}, "
+                    f"{self.metrics} score on training data: {self._score}."
+                )
 
-    def predict(self, X: np.ndarray) -> np.ndarray:
+    def predict(
+        self, X: np.ndarray, predict_proba: bool = True, threshold: float = 0.5
+    ) -> np.ndarray:
         if len(X.shape) == 1:
             X = X.reshape(1, -1)  # Convert vector to single-row matrix
 
@@ -130,7 +152,9 @@ class NeuralNetwork:
         with self._no_grad():
             output = self.forward(X_tensor)
 
-        return output.value
+        if predict_proba:
+            return output.value
+        return (output.value > threshold).astype(int)
 
     def _no_grad(self):
         """Context manager to temporarily disable gradient tracking"""

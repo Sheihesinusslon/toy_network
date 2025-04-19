@@ -7,6 +7,16 @@ class ActivationFunction:
     def derivative(self, output: np.ndarray) -> np.ndarray: ...
 
 
+class Identity(ActivationFunction):
+    """Linear/passthrough activation"""
+
+    def __call__(self, x: np.ndarray) -> np.ndarray:
+        return x
+
+    def derivative(self, output: np.ndarray) -> np.ndarray:
+        return np.ones_like(output)
+
+
 class ReLU(ActivationFunction):
     def __call__(self, x: np.ndarray) -> np.ndarray:
         return np.maximum(0, x)

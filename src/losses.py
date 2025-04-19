@@ -6,6 +6,8 @@ class Loss:
 
     def derivative(self, y_pred: Tensor, y_true: Tensor) -> Tensor: ...
 
+    def __repr__(self): ...
+
 
 class MSE(Loss):
     def __call__(self, y_pred: Tensor, y_true: Tensor) -> Tensor:
@@ -13,3 +15,6 @@ class MSE(Loss):
 
     def derivative(self, y_pred: Tensor, y_true: Tensor) -> Tensor:
         return (y_pred - y_true) * (2 / y_pred.value.size)
+
+    def __repr__(self):
+        return "Mean Squared Error"
