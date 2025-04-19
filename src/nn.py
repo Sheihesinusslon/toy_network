@@ -1,7 +1,7 @@
 import numpy as np
 from typing import Sequence, Optional
 
-from src.activation import ActivationFunction, Identity, ReLU
+from src.activation import ActivationFunction, Identity
 from src.losses import Loss
 from src.metrics import Metrics
 from src.tensor import Tensor
@@ -9,9 +9,6 @@ from src.tensor import Tensor
 
 class Neuron:
     def __init__(self, n_inputs: int, activation: ActivationFunction):
-        # if isinstance(activation, ReLU):
-        #     limit = np.sqrt(2 / n_inputs)
-        # else:
         limit = np.sqrt(6 / (n_inputs + 1))
         self.weights = Tensor(np.random.uniform(-limit, limit, size=(n_inputs, 1)))
         self.bias = Tensor(np.zeros((1, 1)))
