@@ -1,0 +1,36 @@
+name: Run Tests and Lint
+
+on:
+  push:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+
+    - name: Install dependencies
+      run: |
+        uv venv
+        uv pip install .[test]
+
+    - name: Run Ruff
+      run: ruff check src tests
+
+    - name: Run Tests
+      run: |
+        coverage run -m pytest
+        coverage report
