@@ -1,7 +1,7 @@
 import numpy as np
 from typing import Sequence, Optional
 
-from src.activation import ActivationFunction, Identity
+from src.activation import ActivationFunction, Identity, ReLU
 from src.losses import Loss
 from src.metrics import Metrics
 from src.tensor import Tensor
@@ -9,7 +9,11 @@ from src.tensor import Tensor
 
 class Neuron:
     def __init__(self, n_inputs: int, activation: ActivationFunction):
-        self.weights = Tensor(np.random.uniform(-1, 1, size=(n_inputs, 1)))
+        # if isinstance(activation, ReLU):
+        #     limit = np.sqrt(2 / n_inputs)
+        # else:
+        limit = np.sqrt(6 / (n_inputs + 1))
+        self.weights = Tensor(np.random.uniform(-limit, limit, size=(n_inputs, 1)))
         self.bias = Tensor(np.zeros((1, 1)))
         self.activation = activation
         self.inputs: Tensor | None = None
@@ -24,8 +28,10 @@ class Neuron:
     def backward(self, dvalue) -> None:
         dz = dvalue * Tensor(self.activation.derivative(self.output.value))
 
-        self.weights.grad += self.inputs.value.T @ dz.value
-        self.bias.grad += dz.sum(axis=0, keepdims=True).value
+        dz.value = np.clip(dz.value, -1, 1)
+
+        self.weights.grad += np.clip(self.inputs.value.T @ dz.value, -1, 1)
+        self.bias.grad += np.clip(np.sum(dz.value, axis=0, keepdims=True), -1, 1)
 
     def __repr__(self) -> str:
         return f"Neuron(weights={self.weights}, bias={self.bias}, activation={self.activation.__class__.__name__})"
@@ -108,10 +114,15 @@ class NeuralNetwork:
         batch_size: int = 32,
     ) -> None:
         """Train the neural network using gradient descent."""
+        if len(y.shape) == 1:
+            y = y.reshape(-1, 1)
+
         for epoch in range(n_epochs):
             epoch_loss = 0
             epoch_score = 0
+            n_batches = 0
             for i in range(0, len(X), batch_size):
+                n_batches += 1
                 X_batch = Tensor(X[i : i + batch_size])
                 y_batch = Tensor(y[i : i + batch_size])
 
@@ -132,8 +143,8 @@ class NeuralNetwork:
                 # Update weights and biases
                 self.update()
 
-            self._loss = epoch_loss / (len(X) // batch_size)
-            self._score = epoch_score / (len(X) // batch_size)
+            self._loss = epoch_loss / n_batches
+            self._score = epoch_score / n_batches
             if epoch % 10 == 0:
                 print(
                     f"Epoch {epoch}/{n_epochs}, "
